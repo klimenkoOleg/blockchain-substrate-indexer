@@ -1,0 +1,65 @@
+[package]
+name = "subxt"
+version = "0.24.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
+
+license = "Apache-2.0 OR GPL-3.0"
+readme = "../README.md"
+repository = "https://github.com/paritytech/subxt"
+documentation = "https://docs.rs/subxt"
+homepage = "https://www.parity.io/"
+description = "Submit extrinsics (transactions) to a substrate node via RPC"
+keywords = ["parity", "substrate", "blockchain"]
+
+[features]
+default = ["jsonrpsee-ws"]
+
+# Activate this to expose functionality only used for integration testing.
+# The exposed functionality is subject to breaking changes at any point,
+# and should not be relied upon.
+integration-tests = []
+
+# Jsonrpsee if the default RPC provider used in Subxt. However, it can be
+# swapped out for an alternative implementation, and so is optional.
+jsonrpsee-ws = ["jsonrpsee/async-client", "jsonrpsee/client-ws-transport"]
+jsonrpsee-web = ["jsonrpsee/async-wasm-client", "jsonrpsee/client-web-transport"]
+
+[dependencies]
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "full", "bit-vec"] }
+scale-info = { version = "2.0.0", features = ["bit-vec"] }
+scale-value = "0.6.0"
+scale-decode = "0.4.0"
+futures = { version = "0.3.13", default-features = false }
+hex = "0.4.3"
+jsonrpsee = { version = "0.16", optional = true, features = ["jsonrpsee-types"] }
+serde = { version = "1.0.124", features = ["derive"] }
+serde_json = { version = "1.0.64", features = ["raw_value"] }
+thiserror = "1.0.24"
+tracing = "0.1.34"
+parking_lot = "0.12.0"
+subxt = "0.25.0"
+hex-literal = "0.3.4"
+
+
+
+#subxt-macro = { version = "0.24.0", path = "../macro" }
+#subxt-metadata = { version = "0.24.0", path = "../metadata" }
+
+# todo: release these from substrate and use crates.io packages
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33", package = "sp-core", default-features = false  }
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33", package = "sp-runtime" }
+
+frame-metadata = "15.0.0"
+derivative = "2.2.0"
+
+tokio = { version = "1.8", features = ["rt-multi-thread", "macros", "time"] }
+tracing-subscriber = "0.3.11"
+
+
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+tokio = { version = "1.8", features = ["macros", "time", "rt-multi-thread"] }
