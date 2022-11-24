@@ -41,6 +41,10 @@ tracing = "0.1.34"
 parking_lot = "0.12.0"
 subxt = "0.25.0"
 hex-literal = "0.3.4"
+sp-keyring = "7.0.0"
+lazy_static = "1.4.0"
+rusqlite = { version = "0.28.0", features = ["bundled"] }
+
 
 
 
