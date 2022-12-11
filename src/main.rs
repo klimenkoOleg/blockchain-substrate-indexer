@@ -1,3 +1,8 @@
+#![feature(proc_macro_hygiene, decl_macro)]
+
+#[macro_use]
+extern crate rocket;
+
 use futures::StreamExt;
 use subxt::{
     dynamic::Value,
@@ -8,33 +13,244 @@ use subxt::{
 };
 use subxt::ext::sp_core::H256;
 use hex_literal::hex;
+use serde::Deserializer;
 use sp_keyring::AccountKeyring;
 use rusqlite::NO_PARAMS;
 use rusqlite::{Connection, Result, params};
+use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, Transport, QoS};
+use tokio::{task, time};
+use std::time::Duration;
+use std::error::Error;
+use std::io::Cursor;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use std::env;
+use clap::Parser;
+use std::ffi::OsStr;
+use rocket::serde::json::{Json, json};
+use crate::models::Energy;
+use crate::models::EnergyNow;
+use crate::models::hw_data_ints;
+use crate::webserver::Cors;
+use crate::webserver::all_options;
+use std::time::{SystemTime, UNIX_EPOCH};
+use crate::database::write_to_db;
+
+mod models;
+mod webserver;
+mod database;
 
 #[subxt::subxt(runtime_metadata_path = "metadata.scale")]
 pub mod polkadot {}
 
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+
+    /// Blockchain ID of house. Should be different and passed from each Raspberry PI
+    #[arg(long, default_value_t = ("DEFAULT_ADDRESS".to_owned()))]
+    house_id: String,
+
+    /// Name of the person to greet
+    #[arg(long, default_value_t = ("localhost".to_owned()))]
+    broker_host: String,
+
+    /// Number of times to greet
+    #[arg(long, default_value_t = 1883)]
+    broker_port: u16,
+
+    /// Number of times to greet
+    #[arg(long, default_value_t = ("test/test".to_owned()))]
+    broker_topic: String,
+
+}
+
+// fn rocket() -> rocket::Rocket {
+//     dotenv().ok();
+
+// let database_url = env::var("DATABASE_URL").expect("set DATABASE_URL");
+
+// let pool = db::init_pool(database_url);
+// rocket::ignite()
+// .manage(pool)
+// .mount(
+//     "/api/v1/",
+//     routes![get_all], //, new_user, find_user],
+// )
+// }
+
+
+async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, broker_topic: String, house_id: String) {
+    let mut mqttoptions = MqttOptions::new("rumqtt-async", broker_host, broker_port);
+    mqttoptions.set_keep_alive(Duration::from_secs(5));
+
+    let (mut client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
+    client.subscribe(&broker_topic, QoS::AtMostOnce).await.unwrap();
+
+    task::spawn(async move {
+
+        for i in 0..10 {
+            let to_send = i * 100;
+            let mut wtr = vec![];
+            let mut broker_topic1 = broker_topic.clone();
+
+            let start = SystemTime::now();
+            let since_the_epoch = start
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards");
+
+
+            let data = hw_data_ints{
+                time: since_the_epoch.as_secs() as u32,
+                has_panel: 1,
+                has_battery: 1,
+                // nominal
+                panel_power: 1024,
+                battery_capacity: 5068,
+                // metering
+                panel: i+1,
+                battery: i+11,
+                production: i+101,
+                consumption: i+10001,
+            };
+
+            wtr.write_u32::<BigEndian>(data.time).unwrap();
+
+            wtr.write_u8(data.has_panel);
+            wtr.write_u8(data.has_battery);
+
+            wtr.write_u32::<BigEndian>(data.panel_power).unwrap();
+            wtr.write_u32::<BigEndian>(data.battery_capacity).unwrap();
+
+            wtr.write_u32::<BigEndian>(data.panel).unwrap();
+            wtr.write_u32::<BigEndian>(data.battery).unwrap();
+            wtr.write_u32::<BigEndian>(data.production).unwrap();
+            wtr.write_u32::<BigEndian>(data.consumption).unwrap();
+            client.publish(broker_topic1, QoS::AtLeastOnce, false, wtr).await.unwrap();
+            time::sleep(Duration::from_millis(100)).await;
+        }
+    });
+    while let event = eventloop.poll().await {
+        match event {
+            Ok(Event::Incoming(Incoming::Publish(p))) => {
+                let mut rdr = Cursor::new(p.payload);
+
+               /* println!("time READ: {}", );
+                println!("time has_panel: {}", );
+                println!("time has_battery: {}", );
+
+                println!("time panel_power: {}", );
+                println!("time battery_capacity: {}", );
+
+                println!("time panel: {}", );
+                println!("time battery: {}", );
+                println!("time production: {}", );
+                println!("time consumption: {}", );*/
+
+                let data = hw_data_ints{
+                    time: rdr.read_u32::<BigEndian>().unwrap(),
+                    has_panel: rdr.read_u8().unwrap(),
+                    has_battery: rdr.read_u8().unwrap(),
+                    // nominal
+                    panel_power: rdr.read_u32::<BigEndian>().unwrap(),
+                    battery_capacity: rdr.read_u32::<BigEndian>().unwrap(),
+                    // metering
+                    panel: rdr.read_u32::<BigEndian>().unwrap(),
+                    battery: rdr.read_u32::<BigEndian>().unwrap(),
+                    production: rdr.read_u32::<BigEndian>().unwrap(),
+                    consumption: rdr.read_u32::<BigEndian>().unwrap(),
+                };
+                // let mut rdr = Cursor::new(p.payload);
+                println!("Topic: {}, data: {:?}", p.topic, data);
+                write_to_db(house_id.clone(), &data);
+            }
+            Ok(Event::Incoming(i)) => {
+                println!("Incoming = {:?}", i);
+            }
+            Ok(Event::Outgoing(o)) => println!("Outgoing = {:?}", o),
+            Err(e) => {
+                println!("Error = {:?}", e);
+            }
+        }
+        // Incoming::Publish(p)
+        // opic: {}, Payload: {:?}", p.topic, p.payload
+
+        // println!("Received = {:?}", event);
+        //    event.
+        // println!("Received = {:?}", notification);
+    }
+    // Ok(())
+}
+
+
+
+// #[launch]
+// fn rocket() -> _ {
+/*fn rocket() -> _ {
+    tracing_subscriber::fmt::init();
+
+    let args = Args::parse();
+    println!("Hello {}, {}, {}!", args.broker_host, args.broker_port, args.broker_topic);
+
+    readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic);
+
+
+    rocket::build().mount("/api/v1/", routes![get_all2]) .launch().await?;
+
+}*/
+
+fn main() {
+    tracing_subscriber::fmt::init();
+
+    let args = Args::parse();
+    println!("Hello {}, {}, {}, {}", args.broker_host, args.broker_port, args.broker_topic, args.house_id);
+
+    // readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic);
+    let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
+
+    let task1 = rt.spawn(readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic, args.house_id));
+    // let task2 = rt.spawn(rocket::build().attach(Cors).mount("/api/v1/", routes![all_options, get_all2, current]).launch());
+
+    rt.block_on(async {
+        task1.await.unwrap();
+        // task2.await.unwrap();
+        // for handle in handles {
+        // for handle in handles {
+        //     handle.await.unwrap();
+        // }
+    });
+
+    // let handles: Vec<tokio::task::JoinHandle<_>> = (1..10_u64).map(|i| {
+    //     rt.spawn(routine(i))
+    // }).collect();
+}
+
+/*
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    // DB_CONN.
-    let conn = Connection::open("data.sqlite")?;
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS energy(
-            account TEXT NOT NULL,
-            energy_amount TEXT NOT NULL,
-            timestamp TEXT NOT NULL
-        )",
-        (), // empty list of parameters.
-    )?;
+    let args = Args::parse();
+    println!("Hello {}, {}, {}!", args.broker_host, args.broker_port, args.broker_topic);
+
+    // return Ok(());
 
 
+    let mut rdr = Cursor::new(vec![0, 0, 0, 1]);
+    println!("{}", rdr.read_u32::<BigEndian>().unwrap());
+
+    // let mut wtr = vec![];
+    // wtr.write_u16::<LittleEndian>(517).unwrap();
+    // wtr.write_u16::<LittleEndian>(768).unwrap();
+    // assert_eq!(wtr, vec![5, 2, 0, 3]);
 
 
-
+    readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic).await?;
+*/
+// rocket().launch();
+/*
+    // mosquitto client
     // Create a client to use:
     let api = OnlineClient::<PolkadotConfig>::new().await?;
     let signer = PairSigner::new(AccountKeyring::Alice.pair());
@@ -54,19 +270,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("store_energy: {}", hash);
 
     indexLastFinilizedBlocks(&api, &conn).await?;
-    subscribe(&api, &conn).await?;
-    Ok(())
-}
+    subscribe(&api, &conn).await?; */
+// Ok(())
+// }
 
-fn saveEventToDatabase(conn: &Connection, fields : Result<scale_value::Composite<scale_value::scale::TypeId>, subxt::Error> ) {
+fn saveEventToDatabase(conn: &Connection, fields: Result<scale_value::Composite<scale_value::scale::TypeId>, subxt::Error>) {
+    let var1 = fields.unwrap();
+    let mut iter1 = var1.values();
+    // let bytes = iter1.next().unwrap().value;
+    // let bytes_hex = format!("0x{}", bytes.deserialize_bytes().unwrap());
+    // println!("value0: {}", bytes_hex);
+    let address = format!("{}", iter1.next().unwrap().value);
+    let energy_amount = format!("{}", iter1.next().unwrap().value);
+    let timestamp = format!("{}", iter1.next().unwrap().value);
+    // let energy_amount = iter1.next().unwrap().value;
+    // let timestamp = iter1.next().unwrap().value;
     conn.execute(
-        "INSERT INTO people (name, sex)
+        "INSERT INTO energy (account, energy_amount, timestamp)
              values (?, ?, ?)",
         params![
-                "Oleg",
-                "Sometimes",
+                address,
+                energy_amount,
+                timestamp
             ],
     );
+    // println!("value0: {}", iter1.next().unwrap().value);
+    // println!("value0: {}", iter1.next().unwrap().value);
+    // println!("value0: {}", iter1.next().unwrap().value);
 }
 
 async fn indexLastFinilizedBlocks(api: &OnlineClient<PolkadotConfig>, conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
@@ -91,7 +321,7 @@ async fn indexLastFinilizedBlocks(api: &OnlineClient<PolkadotConfig>, conn: &Con
                     for event in evt.field_values() {
                         println!("event: {}", event);
                     }
-                    let (a, b) = (1 , 5);
+                    let (a, b) = (1, 5);
                     saveEventToDatabase(&conn, evt.field_values());
                 }
             }
@@ -128,33 +358,22 @@ async fn subscribe(api: &OnlineClient<PolkadotConfig>, conn: &Connection) -> Res
 
                 // println!("event.field_values(): {}", event.field_values()[0]);
 
-                let var1 = event.field_values().unwrap();
 
-                let mut iter1 = var1.values();
-
-                let bytes = iter1.next().unwrap().value;
-                let bytes_hex = format!("0x{}", hex::encode(bytes));
-
-                println!("value0: {}", bytes_hex);
-                println!("value0: {}", iter1.next().unwrap().value);
-                println!("value0: {}", iter1.next().unwrap().value);
                 // println!("value1: {}", event.field_values().unwrap().values().next().unwrap().value);
                 // println!("value2: {}", event.field_values().unwrap().values().next().unwrap().value);
 
-                for evt in event.field_values() {
-                    // println!("event: {:?}", evt);
-                    // println!("event: {:?}", evt);
-                }
-                let (a, b) = (1 , 5);
+                // for evt in event.field_values() {
+                // println!("event: {:?}", evt);
+                // println!("event: {:?}", evt);
+                // }
                 saveEventToDatabase(&conn, event.field_values());
-                let actual_fields_no_context: Vec<_> = event
-                    .field_values()
-                    .expect("can decode field values (2)")
-                    .into_values()
-                    .map(|value| value.remove_context())
-                    .collect();
+                // let actual_fields_no_context: Vec<_> = event
+                //     .field_values()
+                //     .expect("can decode field values (2)")
+                //     .into_values()
+                //     .map(|value| value.remove_context())
+                //     .collect();
                 // println!("actual_fields_no_context: {:?}", actual_fields_no_context);
-
             }
         }
     }
