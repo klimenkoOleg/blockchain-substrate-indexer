@@ -1,12 +1,16 @@
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::http::Header;
 use rocket::log::private::debug;
-use rocket::serde::json::Json;
+use rocket::serde::json::{Json, json};
 use rocket::{Request, Response};
+use crate::database::get_db_history;
+use crate::database::get_latest_record;
+use crate::database::get_date_vect_60_minutes;
+use crate::database::get_date_vect_60_seconds;
+use crate::database::get_date_vect_24_hours;
 
 // #[macro_use]
 // extern crate rocket;
-
 
 /// Catches all OPTION requests in order to get the CORS related Fairing triggered.
 #[options("/<_..>")]
@@ -36,20 +40,47 @@ impl Fairing for Cors {
     }
 }
 
-#[get("/history", format = "application/json")]
-pub fn get_all2(group: String, ) -> Json<rocket::serde::json::Value> {
-    let users = Energy::get_all();
+#[get("/history?<mode>", format = "application/json")]
+pub fn get_all2(mode: Option<String>) -> Json<rocket::serde::json::Value> {
+    if (mode.clone().is_none()) {
+            return Json(json!({
+            "status": 400,
+            "result": format!("/history URL - empty 'mode' param "),}));
+    }
+    let unwrap1 = mode.unwrap();
+    let mode_to_compare = unwrap1;
+    let (group_param, time_back_range, time_grouping_ticks) = match mode_to_compare.as_str() {
+        "1" => {
+            // let time_grouping_ticks = get_date_vect_24_hours();
+            ("%H", "-1 days", get_date_vect_24_hours()) },
+        // "2" => ("%H", "-1 days"),
+        "2" => ("%M", "-1 hours", get_date_vect_60_minutes()),
+        // "3" => ("%H", "-1 days"),
+        "3" => ("%M", "-15 minutes", get_date_vect_60_seconds()),
+        val => {
+            return Json(json!({
+            "status": 400,
+            "result": format!("/history URL - incorrect 'mode' value: {}", val),}));
+        }
+    };
+    print!("time_grouping_ticks: {:?}", time_grouping_ticks);
+    // print!("input data: {}, {}", group_param, time_back_range);
+    let result = get_db_history(String::from(group_param),
+                                String::from(time_back_range),
+                                &time_grouping_ticks);
+    // let users = Energy::get_all();
     Json(json!({
         "status": 200,
-        "result": users,
+        "result": result,
     }))
 }
 
 #[get("/current", format = "application/json")]
 pub fn current() -> Json<rocket::serde::json::Value> {
-    let users = Energy::get_now();
+    let result = get_latest_record();
+    // let users = Energy::get_now();
     Json(json!({
         "status": 200,
-        "result": users,
+        "result": result,
     }))
 }

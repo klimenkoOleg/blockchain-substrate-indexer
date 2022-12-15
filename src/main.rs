@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate rocket;
+extern crate core;
 
 use futures::StreamExt;
 use subxt::{
@@ -21,8 +22,8 @@ use rumqttc::{AsyncClient, Event, Incoming, MqttOptions, Transport, QoS};
 use tokio::{task, time};
 use std::time::Duration;
 use std::error::Error;
-use std::io::Cursor;
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use std::io::{BufRead, Cursor, Read};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt, LittleEndian};
 use std::env;
 use clap::Parser;
 use std::ffi::OsStr;
@@ -32,6 +33,8 @@ use crate::models::EnergyNow;
 use crate::models::hw_data_ints;
 use crate::webserver::Cors;
 use crate::webserver::all_options;
+use crate::webserver::get_all2;
+use crate::webserver::current;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::database::write_to_db;
 
@@ -82,12 +85,14 @@ struct Args {
 
 async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, broker_topic: String, house_id: String) {
     let mut mqttoptions = MqttOptions::new("rumqtt-async", broker_host, broker_port);
+    // let mut mqttoptions = MqttOptions::new("rumqtt-async", "127.0.0.1", 9999);
     mqttoptions.set_keep_alive(Duration::from_secs(5));
 
     let (mut client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
     client.subscribe(&broker_topic, QoS::AtMostOnce).await.unwrap();
+    // client.subscribe("hardware/data", QoS::AtMostOnce).await.unwrap();
 
-    task::spawn(async move {
+    /*task::spawn(async move {
 
         for i in 0..10 {
             let to_send = i * 100;
@@ -114,27 +119,32 @@ async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, brok
                 consumption: i+10001,
             };
 
-            wtr.write_u32::<BigEndian>(data.time).unwrap();
+            wtr.write_u32::<LittleEndian>(data.time).unwrap();
 
             wtr.write_u8(data.has_panel);
             wtr.write_u8(data.has_battery);
 
-            wtr.write_u32::<BigEndian>(data.panel_power).unwrap();
-            wtr.write_u32::<BigEndian>(data.battery_capacity).unwrap();
+            wtr.write_u32::<LittleEndian>(data.panel_power).unwrap();
+            wtr.write_u32::<LittleEndian>(data.battery_capacity).unwrap();
 
-            wtr.write_u32::<BigEndian>(data.panel).unwrap();
-            wtr.write_u32::<BigEndian>(data.battery).unwrap();
-            wtr.write_u32::<BigEndian>(data.production).unwrap();
-            wtr.write_u32::<BigEndian>(data.consumption).unwrap();
+            wtr.write_u32::<LittleEndian>(data.panel).unwrap();
+            wtr.write_u32::<LittleEndian>(data.battery).unwrap();
+            wtr.write_u32::<LittleEndian>(data.production).unwrap();
+            wtr.write_u32::<LittleEndian>(data.consumption).unwrap();
             client.publish(broker_topic1, QoS::AtLeastOnce, false, wtr).await.unwrap();
             time::sleep(Duration::from_millis(100)).await;
         }
-    });
+    });*/
+
+
     while let event = eventloop.poll().await {
         match event {
             Ok(Event::Incoming(Incoming::Publish(p))) => {
+                let pl = p.payload.clone();
                 let mut rdr = Cursor::new(p.payload);
 
+
+                // println!("p.payload.len: {}", pl.len());
                /* println!("time READ: {}", );
                 println!("time has_panel: {}", );
                 println!("time has_battery: {}", );
@@ -146,28 +156,35 @@ async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, brok
                 println!("time battery: {}", );
                 println!("time production: {}", );
                 println!("time consumption: {}", );*/
-
-                let data = hw_data_ints{
-                    time: rdr.read_u32::<BigEndian>().unwrap(),
-                    has_panel: rdr.read_u8().unwrap(),
-                    has_battery: rdr.read_u8().unwrap(),
+                // let panel_power1 = rdr.read_;
+                let mut data1 = hw_data_ints::default();
+                // let data = hw_data_ints{
+                    data1.time = rdr.read_u32::<LittleEndian>().unwrap(); // 4
+                    data1.has_panel= rdr.read_u16::<BigEndian>().unwrap();
+                    // data1.has_panel= rdr.read_u8().unwrap();
+                    data1.has_battery= rdr.read_u16::<BigEndian>().unwrap();
+                data1.has_panel= 1;
+                data1.has_battery= 1;
+                    // data1.has_battery= rdr.read_u8().unwrap();
                     // nominal
-                    panel_power: rdr.read_u32::<BigEndian>().unwrap(),
-                    battery_capacity: rdr.read_u32::<BigEndian>().unwrap(),
+                    data1.panel_power= rdr.read_u32::<LittleEndian>().unwrap() as u32;
+                    data1.battery_capacity= rdr.read_u32::<LittleEndian>().unwrap() as u32;
                     // metering
-                    panel: rdr.read_u32::<BigEndian>().unwrap(),
-                    battery: rdr.read_u32::<BigEndian>().unwrap(),
-                    production: rdr.read_u32::<BigEndian>().unwrap(),
-                    consumption: rdr.read_u32::<BigEndian>().unwrap(),
-                };
+                    data1.panel= rdr.read_u32::<LittleEndian>().unwrap();
+                    data1.battery= rdr.read_u32::<LittleEndian>().unwrap();
+                    data1.production= rdr.read_u32::<LittleEndian>().unwrap();
+                    data1.consumption= rdr.read_u32::<LittleEndian>().unwrap();
+                // };
                 // let mut rdr = Cursor::new(p.payload);
-                println!("Topic: {}, data: {:?}", p.topic, data);
-                write_to_db(house_id.clone(), &data);
+                println!("Topic: {}, data: {:?}", p.topic, data1);
+                write_to_db(house_id.clone(), &data1);
             }
             Ok(Event::Incoming(i)) => {
-                println!("Incoming = {:?}", i);
+                // println!("Incoming = {:?}", i);
             }
-            Ok(Event::Outgoing(o)) => println!("Outgoing = {:?}", o),
+            Ok(Event::Outgoing(o)) => {
+                println!("Outgoing = {:?}", o);
+            },
             Err(e) => {
                 println!("Error = {:?}", e);
             }
@@ -209,11 +226,11 @@ fn main() {
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
 
     let task1 = rt.spawn(readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic, args.house_id));
-    // let task2 = rt.spawn(rocket::build().attach(Cors).mount("/api/v1/", routes![all_options, get_all2, current]).launch());
+    let task2 = rt.spawn(rocket::build().attach(Cors).mount("/api/v1/", routes![all_options, get_all2, current]).launch());
 
     rt.block_on(async {
-        task1.await.unwrap();
-        // task2.await.unwrap();
+        // task1.await.unwrap();
+        task2.await.unwrap();
         // for handle in handles {
         // for handle in handles {
         //     handle.await.unwrap();
@@ -238,7 +255,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     let mut rdr = Cursor::new(vec![0, 0, 0, 1]);
-    println!("{}", rdr.read_u32::<BigEndian>().unwrap());
+    println!("{}", rdr.read_u32::<LittleEndian>().unwrap());
 
     // let mut wtr = vec![];
     // wtr.write_u16::<LittleEndian>(517).unwrap();
@@ -317,7 +334,7 @@ async fn indexLastFinilizedBlocks(api: &OnlineClient<PolkadotConfig>, conn: &Con
                 let event_name = evt.variant_name();
                 if ("MeteringSaved" == event_name) {
                     println!("        {pallet_name}_{event_name}");
-                    print!("variant_name: {}", evt.variant_name());
+                    // print!("variant_name: {}", evt.variant_name());
                     for event in evt.field_values() {
                         println!("event: {}", event);
                     }
