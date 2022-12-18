@@ -95,13 +95,13 @@ pub struct LatestMeteringDto
     pub has_panel: u16,
     pub has_battery: u16,
     // HW specs
-    pub panel_power: u32,
-    pub battery_capacity: u32,
+    pub panel_power: f64,
+    pub battery_capacity: f64,
     // HW : panel & battery values + meters' reading
-    pub panel: u32,
-    pub battery: u32,
-    pub production: u32,
-    pub consumption: u32,
+    pub panel: f64,
+    pub battery: f64,
+    pub production: f64,
+    pub consumption: f64,
 }
 
 impl LatestMeteringDto {
@@ -112,13 +112,13 @@ impl LatestMeteringDto {
             has_panel: 0,
             has_battery: 0,
             // HW specs
-            panel_power: 0,
-            battery_capacity: 0,
+            panel_power: 0.,
+            battery_capacity: 0.,
             // HW : panel & battery values + meters' reading
-            panel: 0,
-            battery: 0,
-            production: 0,
-            consumption: 0,
+            panel: 0.,
+            battery: 0.,
+            production: 0.,
+            consumption: 0.,
         }
     }
 }

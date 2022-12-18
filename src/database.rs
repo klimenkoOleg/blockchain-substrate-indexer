@@ -64,7 +64,7 @@ fn connect() -> Connection {
 }
 
 pub fn get_latest_record() -> LatestMeteringDto {
-    let sql = format!("select time, has_panel, has_battery, panel_power, battery_capacity, panel, battery, production, consumption
+    let sql = format!("select time, has_panel, has_battery, panel_power/1000., battery_capacity/1000., panel/1000., battery/1000., production/1000., consumption/1000.
                                 from energy5
                                 order by time desc
                                 limit 1");
@@ -93,7 +93,7 @@ pub fn get_latest_record() -> LatestMeteringDto {
 
 pub fn get_db_history(group_param: String, time_back_range: String, time_grouping_ticks : &Vec<u32>) -> MeteringHistoryDto {
     let sql =  format!("SELECT CAST(strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) as INT) as hour1, \
-                                round(avg(panel), 2), round(avg(battery), 2), round(avg(production), 2), round(avg(consumption), 2) \
+                                round(avg(panel)/1000., 2), round(avg(battery)/1000., 2), round(avg(production)/1000., 2), round(avg(consumption)/1000., 2) \
                                 FROM energy5 \
                                 where house_id = 'DEFAULT_ADDRESS' and  datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '{time_back_range}', 'localtime') AND datetime('now', 'localtime') \
                                 group by strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) ORDER by datetime(time, 'unixepoch', 'localtime') limit 1000");
