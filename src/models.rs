@@ -87,6 +87,30 @@ pub struct MeteringHistoryDto
 }
 
 #[derive(Serialize, Debug)]
+pub struct TotalEnergyDto
+{
+    pub internal_consumption: f64,
+    pub internal_production: f64,
+    pub external_production_energy: f64,
+    pub external_consumption_energy: f64,
+    pub external_production_money: f64,
+    pub external_consumption_money: f64,
+}
+
+impl TotalEnergyDto {
+    pub fn get_empty() -> TotalEnergyDto {
+        TotalEnergyDto {
+            internal_consumption: 0.,
+            internal_production: 0.,
+            external_production_energy: 0.,
+            external_consumption_energy: 0.,
+            external_production_money: 0.,
+            external_consumption_money: 0.,
+        }
+    }
+}
+
+#[derive(Serialize, Debug)]
 pub struct LatestMeteringDto
 {
     pub time: u32,

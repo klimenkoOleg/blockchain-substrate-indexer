@@ -5,6 +5,7 @@ use crate::models::hw_data_ints;
 use crate::models::MeteringHistoryDto;
 use crate::models::LatestMeteringDto;
 use crate::models::MeteringHistorySingleDto;
+use crate::models::TotalEnergyDto;
 use chrono::{Datelike, Timelike, Utc, Duration};
 use std::collections::{HashMap};
 
@@ -44,9 +45,10 @@ pub fn get_date_vect_60_seconds() -> Vec<u32> {
 
 fn connect() -> Connection {
     // DB_CONN.
+    println!("create TABLE!!");
     let conn = Connection::open("data.sqlite").unwrap();
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS energy5 (
+        "CREATE TABLE IF NOT EXISTS energy6 (
             house_id TEXT NOT NULL,
             time timestamp NOT NULL,
             has_panel INTEGER NOT NULL,
@@ -65,7 +67,7 @@ fn connect() -> Connection {
 
 pub fn get_latest_record() -> LatestMeteringDto {
     let sql = format!("select time, has_panel, has_battery, panel_power/1000., battery_capacity/1000., panel/1000., battery/1000., production/1000., consumption/1000.
-                                from energy5
+                                from energy6
                                 order by time desc
                                 limit 1");
     let conn = Connection::open("data.sqlite").unwrap();
@@ -91,10 +93,52 @@ pub fn get_latest_record() -> LatestMeteringDto {
     return metering.unwrap();
 }
 
+pub fn get_db_total(time_param: String) -> TotalEnergyDto {
+    let sql =  format!("select round(sum(e.consumption)/1000., 2) as internal_consumption,
+	round(sum(e.production)/1000., 2) as internal_production,
+	round(sum( case WHEN e.consumption - e.production < 0 then - e.consumption + e.production
+			else 0
+			end )/1000, 2) as external_production,
+	   round(sum( case WHEN e.consumption - e.production > 0 then e.consumption - e.production
+			else 0
+			end )/1000, 2) as external_consumption
+	from energy6 e
+	where house_id = 'DEFAULT_ADDRESS' and  datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '-1 {time_param}', 'localtime') AND datetime('now', 'localtime')
+    limit 1");
+    let conn = Connection::open("data.sqlite").unwrap();
+    let mut stmt = conn.prepare(&*sql).unwrap();
+
+    let mut latest_metering_iter = stmt.query_map([], |row| {
+
+
+        let mut external_production_energy: f64;
+        external_production_energy = row.get(2).unwrap() ;
+        // external_production_money1 = external_consumption_money1 * 2;
+
+        let mut external_consumption_energy: f64;
+        external_consumption_energy = row.get(3).unwrap() ;
+        // external_consumption_money1 = external_consumption_money1 * 10.;
+
+        Ok(TotalEnergyDto {
+            internal_consumption: row.get(0).unwrap(),
+            internal_production: row.get(1).unwrap(),
+
+            external_production_energy: external_production_energy,
+            external_consumption_energy: external_consumption_energy,
+            external_production_money: external_production_energy * 2.,
+            external_consumption_money: external_consumption_energy * 10.,
+        })
+    }).unwrap();
+    let metering_next = latest_metering_iter.next();
+    let metering = metering_next.unwrap_or(Ok(TotalEnergyDto::get_empty()));
+    // conn.close().unwrap();
+    return metering.unwrap();
+}
+
 pub fn get_db_history(group_param: String, time_back_range: String, time_grouping_ticks : &Vec<u32>) -> MeteringHistoryDto {
     let sql =  format!("SELECT CAST(strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) as INT) as hour1, \
                                 round(avg(panel)/1000., 2), round(avg(battery)/1000., 2), round(avg(production)/1000., 2), round(avg(consumption)/1000., 2) \
-                                FROM energy5 \
+                                FROM energy6 \
                                 where house_id = 'DEFAULT_ADDRESS' and  datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '{time_back_range}', 'localtime') AND datetime('now', 'localtime') \
                                 group by strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) ORDER by datetime(time, 'unixepoch', 'localtime') limit 1000");
     let conn = Connection::open("data.sqlite").unwrap();
@@ -167,7 +211,7 @@ pub fn get_db_history(group_param: String, time_back_range: String, time_groupin
 pub fn write_to_db(house_id: String, data: &hw_data_ints) {
     let conn = connect();
     conn.execute(
-        "INSERT INTO energy5 (house_id, time, has_panel, has_battery, panel_power, battery_capacity, panel, battery, production, consumption)
+        "INSERT INTO energy6 (house_id, time, has_panel, has_battery, panel_power, battery_capacity, panel, battery, production, consumption)
              values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         params![
                 house_id,

@@ -8,6 +8,7 @@ use crate::database::get_latest_record;
 use crate::database::get_date_vect_60_minutes;
 use crate::database::get_date_vect_60_seconds;
 use crate::database::get_date_vect_24_hours;
+use crate::database::get_db_total;
 
 // #[macro_use]
 // extern crate rocket;
@@ -40,6 +41,38 @@ impl Fairing for Cors {
     }
 }
 
+#[get("/total?<mode>", format = "application/json")]
+pub fn get_total(mode: Option<String>) -> Json<rocket::serde::json::Value> {
+    if (mode.clone().is_none()) {
+        return Json(json!({
+            "status": 400,
+            "result": format!("/history URL - empty 'mode' param "),}));
+    }
+
+    let unwrap1 = mode.unwrap();
+    let mode_to_compare = unwrap1;
+    let time_param = match mode_to_compare.as_str() {
+        "1" => {
+            // let time_grouping_ticks = get_date_vect_24_hours();
+            "hours" },
+        // "2" => ("%H", "-1 days"),
+        "2" => ("days"),
+        // "3" => ("%H", "-1 days"),
+        "3" => ("months"),
+        val => {
+            return Json(json!({
+            "status": 400,
+            "result": format!("/history URL - incorrect 'mode' value: {}", val),}));
+        }
+    };
+    let result = get_db_total(String::from(time_param));
+    // let users = Energy::get_all();
+    Json(json!({
+        "status": 200,
+        "result": result,
+    }))
+}
+
 #[get("/history?<mode>", format = "application/json")]
 pub fn get_all2(mode: Option<String>) -> Json<rocket::serde::json::Value> {
     if (mode.clone().is_none()) {
@@ -63,7 +96,7 @@ pub fn get_all2(mode: Option<String>) -> Json<rocket::serde::json::Value> {
             "result": format!("/history URL - incorrect 'mode' value: {}", val),}));
         }
     };
-    print!("time_grouping_ticks: {:?}", time_grouping_ticks);
+    // print!("time_grouping_ticks: {:?}", time_grouping_ticks);
     // print!("input data: {}, {}", group_param, time_back_range);
     let result = get_db_history(String::from(group_param),
                                 String::from(time_back_range),

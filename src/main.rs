@@ -35,8 +35,11 @@ use crate::webserver::Cors;
 use crate::webserver::all_options;
 use crate::webserver::get_all2;
 use crate::webserver::current;
+use crate::webserver::get_total;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::database::write_to_db;
+use rocket::config::Config;
+use std::net::Ipv4Addr;
 
 mod models;
 mod webserver;
@@ -226,7 +229,16 @@ fn main() {
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
 
     let task1 = rt.spawn(readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic, args.house_id));
-    let task2 = rt.spawn(rocket::build().attach(Cors).mount("/api/v1/", routes![all_options, get_all2, current]).launch());
+    let config = Config {
+        address: Ipv4Addr::new(0, 0, 0, 0).into(),
+        ..Config::debug_default()
+    };
+    let task2 = rt.spawn(
+        rocket::custom(config)
+            // .address("0.0.0.0")
+            // .port(8000)
+            .attach(Cors)
+            .mount("/api/v1/", routes![all_options, get_all2, current, get_total]).launch());
 
     rt.block_on(async {
         // task1.await.unwrap();
