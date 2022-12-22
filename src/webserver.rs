@@ -41,8 +41,8 @@ impl Fairing for Cors {
     }
 }
 
-#[get("/total?<mode>", format = "application/json")]
-pub fn get_total(mode: Option<String>) -> Json<rocket::serde::json::Value> {
+#[get("/total?<mode>&<house_id>", format = "application/json")]
+pub fn get_total(mode: Option<String>, house_id: Option<String>) -> Json<rocket::serde::json::Value> {
     if (mode.clone().is_none()) {
         return Json(json!({
             "status": 400,
@@ -65,7 +65,7 @@ pub fn get_total(mode: Option<String>) -> Json<rocket::serde::json::Value> {
             "result": format!("/history URL - incorrect 'mode' value: {}", val),}));
         }
     };
-    let result = get_db_total(String::from(time_param));
+    let result = get_db_total(String::from(time_param), &house_id);
     // let users = Energy::get_all();
     Json(json!({
         "status": 200,

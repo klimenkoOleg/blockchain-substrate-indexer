@@ -93,7 +93,15 @@ pub fn get_latest_record() -> LatestMeteringDto {
     return metering.unwrap();
 }
 
-pub fn get_db_total(time_param: String) -> TotalEnergyDto {
+pub fn get_db_total(time_param: String, house_id: &Option<String>) -> TotalEnergyDto {
+
+    let where_house_id = match house_id {
+        Some(house_id) => {
+            format!(" house_id='{}' and ", house_id)
+        }
+        None => "".to_owned(),
+    };
+
     let sql =  format!("select round(sum(e.consumption)/1000., 2) as internal_consumption,
 	round(sum(e.production)/1000., 2) as internal_production,
 	round(sum( case WHEN e.consumption - e.production < 0 then - e.consumption + e.production
@@ -103,7 +111,7 @@ pub fn get_db_total(time_param: String) -> TotalEnergyDto {
 			else 0
 			end )/1000, 2) as external_consumption
 	from energy6 e
-	where house_id = 'DEFAULT_ADDRESS' and  datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '-1 {time_param}', 'localtime') AND datetime('now', 'localtime')
+	where {where_house_id} datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '-1 {time_param}', 'localtime') AND datetime('now', 'localtime')
     limit 1");
     let conn = Connection::open("data.sqlite").unwrap();
     let mut stmt = conn.prepare(&*sql).unwrap();

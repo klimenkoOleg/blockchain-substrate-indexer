@@ -40,6 +40,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::database::write_to_db;
 use rocket::config::Config;
 use std::net::Ipv4Addr;
+use rand::Rng; // 0.8.5
 
 mod models;
 mod webserver;
@@ -73,9 +74,7 @@ struct Args {
 
 // fn rocket() -> rocket::Rocket {
 //     dotenv().ok();
-
 // let database_url = env::var("DATABASE_URL").expect("set DATABASE_URL");
-
 // let pool = db::init_pool(database_url);
 // rocket::ignite()
 // .manage(pool)
@@ -87,7 +86,11 @@ struct Args {
 
 
 async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, broker_topic: String, house_id: String) {
-    let mut mqttoptions = MqttOptions::new("rumqtt-async", broker_host, broker_port);
+    let rnd_mqtt_consumer = rand::thread_rng().gen_range(0..100);
+    let mut mqttoptions = MqttOptions::new(
+                            format!("{}{}{}","rumqtt-async", broker_topic, rnd_mqtt_consumer),
+                                broker_host,
+                                broker_port);
     // let mut mqttoptions = MqttOptions::new("rumqtt-async", "127.0.0.1", 9999);
     mqttoptions.set_keep_alive(Duration::from_secs(5));
 
@@ -219,16 +222,41 @@ async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, brok
 
 }*/
 
+async fn routine(millis: u64) {
+    println!("in routine({millis})");
+    tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+}
+
 fn main() {
     tracing_subscriber::fmt::init();
 
     let args = Args::parse();
     println!("Hello {}, {}, {}, {}", args.broker_host, args.broker_port, args.broker_topic, args.house_id);
 
+    let mut broker_topics_split = args.broker_topic.split(",");
+    // let broker_ropics: Vec<String> = broker_topics_split.collect();
+
+
+    // print!("topics: {:?}", broker_ropics);
+
+    // std::process::exit(exit_code);
+
     // readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic);
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
 
-    let task1 = rt.spawn(readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic, args.house_id));
+    // let task1 = rt.spawn(readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic, args.house_id));
+
+    let handles: Vec<tokio::task::JoinHandle<_>> = broker_topics_split.map(|topic| {
+        rt.spawn(readLatestMosquittoMessages(args.broker_host.clone(), args.broker_port, topic.to_owned(), args.house_id.clone()))
+    }).collect();
+
+    // let handles: Vec<tokio::task::JoinHandle<_>> = (1..2_u64).map(|topic| {
+    //     rt.spawn(readLatestMosquittoMessages(args.broker_host, args.broker_port, "asd".to_owned(), args.house_id));
+    // }).collect();
+    // let handles: Vec<tokio::task::JoinHandle<_>> = (1..10_u64).map(|i| {
+    //     rt.spawn(routine(i))
+    // }).collect();
+
     let config = Config {
         address: Ipv4Addr::new(0, 0, 0, 0).into(),
         ..Config::debug_default()
@@ -248,14 +276,12 @@ fn main() {
         //     handle.await.unwrap();
         // }
     });
-
     // let handles: Vec<tokio::task::JoinHandle<_>> = (1..10_u64).map(|i| {
     //     rt.spawn(routine(i))
     // }).collect();
 }
 
 /*
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
@@ -274,10 +300,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // wtr.write_u16::<LittleEndian>(768).unwrap();
     // assert_eq!(wtr, vec![5, 2, 0, 3]);
 
-
     readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic).await?;
 */
-// rocket().launch();
 /*
     // mosquitto client
     // Create a client to use:
