@@ -50,6 +50,7 @@ byteorder = "1.4.3"
 rocket = { version = "0.5.0-rc.2", features = ["json"] }
 rand = "0.8.5"
 chrono = "0.4.23"
+substring = "1.4.5"
 
 #rocket = { path = "../../core/lib", features = ["json"] }
 

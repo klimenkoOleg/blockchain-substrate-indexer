@@ -41,6 +41,7 @@ use crate::database::write_to_db;
 use rocket::config::Config;
 use std::net::Ipv4Addr;
 use rand::Rng; // 0.8.5
+use substring::Substring;
 
 mod models;
 mod webserver;
@@ -85,7 +86,7 @@ struct Args {
 // }
 
 
-async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, broker_topic: String, house_id: String) {
+async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, broker_topic: String) {
     let rnd_mqtt_consumer = rand::thread_rng().gen_range(0..100);
     let mut mqttoptions = MqttOptions::new(
                             format!("{}{}{}","rumqtt-async", broker_topic, rnd_mqtt_consumer),
@@ -183,7 +184,11 @@ async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, brok
                 // };
                 // let mut rdr = Cursor::new(p.payload);
                 println!("Topic: {}, data: {:?}", p.topic, data1);
-                write_to_db(house_id.clone(), &data1);
+
+                let topic = p.topic;
+                let pos = broker_topic.rfind('/') ;
+                let house_name = broker_topic.substring(pos.unwrap_or(0) + 1, broker_topic.len());
+                write_to_db(String::from(house_name), &data1);
             }
             Ok(Event::Incoming(i)) => {
                 // println!("Incoming = {:?}", i);
@@ -247,7 +252,7 @@ fn main() {
     // let task1 = rt.spawn(readLatestMosquittoMessages(args.broker_host, args.broker_port, args.broker_topic, args.house_id));
 
     let handles: Vec<tokio::task::JoinHandle<_>> = broker_topics_split.map(|topic| {
-        rt.spawn(readLatestMosquittoMessages(args.broker_host.clone(), args.broker_port, topic.to_owned(), args.house_id.clone()))
+        rt.spawn(readLatestMosquittoMessages(args.broker_host.clone(), args.broker_port, topic.to_owned()))
     }).collect();
 
     // let handles: Vec<tokio::task::JoinHandle<_>> = (1..2_u64).map(|topic| {

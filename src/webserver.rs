@@ -41,8 +41,8 @@ impl Fairing for Cors {
     }
 }
 
-#[get("/total?<mode>&<house_id>", format = "application/json")]
-pub fn get_total(mode: Option<String>, house_id: Option<String>) -> Json<rocket::serde::json::Value> {
+#[get("/total/<house_name>?<mode>", format = "application/json")]
+pub fn get_total(house_name: String, mode: Option<String>) -> Json<rocket::serde::json::Value> {
     if (mode.clone().is_none()) {
         return Json(json!({
             "status": 400,
@@ -65,7 +65,7 @@ pub fn get_total(mode: Option<String>, house_id: Option<String>) -> Json<rocket:
             "result": format!("/history URL - incorrect 'mode' value: {}", val),}));
         }
     };
-    let result = get_db_total(String::from(time_param), &house_id);
+    let result = get_db_total(String::from(time_param), house_name);
     // let users = Energy::get_all();
     Json(json!({
         "status": 200,
@@ -73,8 +73,8 @@ pub fn get_total(mode: Option<String>, house_id: Option<String>) -> Json<rocket:
     }))
 }
 
-#[get("/history?<mode>", format = "application/json")]
-pub fn get_all2(mode: Option<String>) -> Json<rocket::serde::json::Value> {
+#[get("/history/<house_name>?<mode>", format = "application/json")]
+pub fn get_all2(house_name: String, mode: Option<String>) -> Json<rocket::serde::json::Value> {
     if (mode.clone().is_none()) {
             return Json(json!({
             "status": 400,
@@ -100,7 +100,7 @@ pub fn get_all2(mode: Option<String>) -> Json<rocket::serde::json::Value> {
     // print!("input data: {}, {}", group_param, time_back_range);
     let result = get_db_history(String::from(group_param),
                                 String::from(time_back_range),
-                                &time_grouping_ticks);
+                                &time_grouping_ticks, house_name);
     // let users = Energy::get_all();
     Json(json!({
         "status": 200,
@@ -108,9 +108,9 @@ pub fn get_all2(mode: Option<String>) -> Json<rocket::serde::json::Value> {
     }))
 }
 
-#[get("/current", format = "application/json")]
-pub fn current() -> Json<rocket::serde::json::Value> {
-    let result = get_latest_record();
+#[get("/current/<house_name>", format = "application/json")]
+pub fn current(house_name: String) -> Json<rocket::serde::json::Value> {
+    let result = get_latest_record(house_name);
     // let users = Energy::get_now();
     Json(json!({
         "status": 200,

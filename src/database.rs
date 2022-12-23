@@ -65,9 +65,10 @@ fn connect() -> Connection {
     return conn;
 }
 
-pub fn get_latest_record() -> LatestMeteringDto {
+pub fn get_latest_record(house_name: String) -> LatestMeteringDto {
+    let where_house_id = get_house_name_sql(house_name);
     let sql = format!("select time, has_panel, has_battery, panel_power/1000., battery_capacity/1000., panel/1000., battery/1000., production/1000., consumption/1000.
-                                from energy6
+                                from energy6 where {where_house_id} 1=1
                                 order by time desc
                                 limit 1");
     let conn = Connection::open("data.sqlite").unwrap();
@@ -93,14 +94,9 @@ pub fn get_latest_record() -> LatestMeteringDto {
     return metering.unwrap();
 }
 
-pub fn get_db_total(time_param: String, house_id: &Option<String>) -> TotalEnergyDto {
+pub fn get_db_total(time_param: String, house_name: String) -> TotalEnergyDto {
 
-    let where_house_id = match house_id {
-        Some(house_id) => {
-            format!(" house_id='{}' and ", house_id)
-        }
-        None => "".to_owned(),
-    };
+    let where_house_id = get_house_name_sql(house_name);
 
     let sql =  format!("select round(sum(e.consumption)/1000., 2) as internal_consumption,
 	round(sum(e.production)/1000., 2) as internal_production,
@@ -143,11 +139,22 @@ pub fn get_db_total(time_param: String, house_id: &Option<String>) -> TotalEnerg
     return metering.unwrap();
 }
 
-pub fn get_db_history(group_param: String, time_back_range: String, time_grouping_ticks : &Vec<u32>) -> MeteringHistoryDto {
+fn get_house_name_sql(house_name: String) -> String {
+    match house_name.as_str() {
+        "all" => {
+            "".to_owned()
+        }
+        _ => format!(" house_id='{}' and ", house_name),
+    }
+}
+
+pub fn get_db_history(group_param: String, time_back_range: String, time_grouping_ticks : &Vec<u32>, house_name: String) -> MeteringHistoryDto {
+    let where_house_id: String = get_house_name_sql(house_name);
+
     let sql =  format!("SELECT CAST(strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) as INT) as hour1, \
                                 round(avg(panel)/1000., 2), round(avg(battery)/1000., 2), round(avg(production)/1000., 2), round(avg(consumption)/1000., 2) \
                                 FROM energy6 \
-                                where house_id = 'DEFAULT_ADDRESS' and  datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '{time_back_range}', 'localtime') AND datetime('now', 'localtime') \
+                                where {where_house_id} datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '{time_back_range}', 'localtime') AND datetime('now', 'localtime') \
                                 group by strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) ORDER by datetime(time, 'unixepoch', 'localtime') limit 1000");
     let conn = Connection::open("data.sqlite").unwrap();
     let mut stmt = conn.prepare(&*sql).unwrap();
