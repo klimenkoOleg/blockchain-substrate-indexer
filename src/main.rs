@@ -71,6 +71,10 @@ struct Args {
     #[arg(long, default_value_t = ("test/test".to_owned()))]
     broker_topic: String,
 
+    /// Time shift
+    #[arg(long, default_value_t = 0)]
+    time_zone: u16,
+
 }
 
 // fn rocket() -> rocket::Rocket {

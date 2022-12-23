@@ -13,8 +13,9 @@ pub fn get_date_vect_24_hours() -> Vec<u32> {
     let now = Utc::now();
     let mut hours: Vec<u32> = Vec::with_capacity(24);
     for i in 0..24 {
-        let hour_shift = (24 as u32) -  (i as u32) - 1;
-        let val = now.checked_sub_signed(Duration::hours(hour_shift as i64)).unwrap();
+        // let hour_shift = (24 as u32) -  (i as u32) - 1;
+        // let val = now.checked_sub_signed(Duration::hours(hour_shift as i64)).unwrap();
+        let val = now.checked_sub_signed(Duration::hours(i)).unwrap();
         hours.push(val.hour());
     }
     return hours;
@@ -25,8 +26,10 @@ pub fn get_date_vect_60_minutes() -> Vec<u32> {
     // print!("hour: {}", now.hour());
     let mut hours: Vec<u32> = Vec::with_capacity(60);
     for i in 0..60 {
-        let shift = (60 as u32) -  (i as u32) - 1;
-        let val = now.checked_sub_signed(Duration::minutes(shift as i64)).unwrap();
+        // let shift = (60 as u32) -  (i as u32);// - 1;
+        // let shift = (60 as u32) -  (i as u32);// - 1;
+        // let val = now.checked_sub_signed(Duration::minutes(shift as i64)).unwrap();
+        let val = now.checked_sub_signed(Duration::minutes(i)).unwrap();
         hours.push( val.minute() );
     }
     return hours;
@@ -36,8 +39,8 @@ pub fn get_date_vect_60_seconds() -> Vec<u32> {
     let now = Utc::now();
     let mut hours: Vec<u32> = Vec::with_capacity(60);
     for i in 0..60 {
-        let shift = (60 as u32) -  (i as u32) - 1;
-        let val = now.checked_sub_signed(Duration::seconds(shift as i64)).unwrap();
+        // let shift = (60 as u32) -  (i as u32) - 1;
+        let val = now.checked_sub_signed(Duration::seconds(i)).unwrap();
         hours.push(val.second());
     }
     return hours;
@@ -155,7 +158,7 @@ pub fn get_db_history(group_param: String, time_back_range: String, time_groupin
                                 round(avg(panel)/1000., 2), round(avg(battery)/1000., 2), round(avg(production)/1000., 2), round(avg(consumption)/1000., 2) \
                                 FROM energy6 \
                                 where {where_house_id} datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '{time_back_range}', 'localtime') AND datetime('now', 'localtime') \
-                                group by strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) ORDER by datetime(time, 'unixepoch', 'localtime') limit 1000");
+                                group by strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) ORDER by datetime(time, 'unixepoch', 'localtime') DESC limit 1000");
     let conn = Connection::open("data.sqlite").unwrap();
     let mut stmt = conn.prepare(&*sql).unwrap();
     let hours_map : HashMap<u32, Vec<MeteringHistorySingleDto>> = time_grouping_ticks
@@ -167,6 +170,7 @@ pub fn get_db_history(group_param: String, time_back_range: String, time_groupin
     let mut hours_map2 : HashMap<u32, MeteringHistorySingleDto> = HashMap::new();
     let meterings_iter = stmt.query_map([], |row| {
         let time_groupping1 = row.get(0).unwrap();
+        print!("time_groupping1: {}", time_groupping1);
         let mut vec1 = hours_map.get(&time_groupping1).unwrap();
         // print!("time_groupping1: {}", time_groupping1);
         hours_map2.insert(time_groupping1, MeteringHistorySingleDto {

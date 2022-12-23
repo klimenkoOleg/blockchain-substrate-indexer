@@ -89,14 +89,25 @@ pub fn get_all2(house_name: String, mode: Option<String>) -> Json<rocket::serde:
         // "2" => ("%H", "-1 days"),
         "2" => ("%M", "-1 hours", get_date_vect_60_minutes()),
         // "3" => ("%H", "-1 days"),
-        "3" => ("%M", "-15 minutes", get_date_vect_60_seconds()),
+        "3" => {
+            let mut vec =  get_date_vect_60_minutes();
+            // print!("timevec_grouping_ticks: {:?}", vec);
+            let result = vec.drain(0..15).collect();
+            ("%M", "-15 minutes", result)
+        },
+        "4" => {
+            // let mut vec =  get_date_vect_60_seconds();
+            // print!("timevec_grouping_ticks: {:?}", vec);
+            // let result = vec.drain(0..15).collect();
+            ("%S", "-1 minutes", get_date_vect_60_seconds())
+        },
         val => {
             return Json(json!({
             "status": 400,
             "result": format!("/history URL - incorrect 'mode' value: {}", val),}));
         }
     };
-    // print!("time_grouping_ticks: {:?}", time_grouping_ticks);
+    print!("time_grouping_ticks: {:?}", time_grouping_ticks);
     // print!("input data: {}, {}", group_param, time_back_range);
     let result = get_db_history(String::from(group_param),
                                 String::from(time_back_range),
