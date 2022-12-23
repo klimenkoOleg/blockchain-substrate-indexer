@@ -48,7 +48,7 @@ pub fn get_date_vect_60_seconds() -> Vec<u32> {
 
 fn connect() -> Connection {
     // DB_CONN.
-    println!("create TABLE!!");
+    // println!("create TABLE!!");
     let conn = Connection::open("data.sqlite").unwrap();
     conn.execute(
         "CREATE TABLE IF NOT EXISTS energy6 (
@@ -93,6 +93,9 @@ pub fn get_latest_record(house_name: String) -> LatestMeteringDto {
     }).unwrap();
     let metering_next = latest_metering_iter.next();
     let metering = metering_next.unwrap_or(Ok(LatestMeteringDto::get_empty()));
+    // let result = metering.unwrap();
+    // mathresult.has_battery
+
     // conn.close().unwrap();
     return metering.unwrap();
 }

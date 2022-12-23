@@ -152,9 +152,11 @@ async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, brok
         match event {
             Ok(Event::Incoming(Incoming::Publish(p))) => {
                 let pl = p.payload.clone();
+                let p2 = p.payload.clone();
                 let mut rdr = Cursor::new(p.payload);
-
-
+                // 4 bytes -> time: u32
+                // 2 bytes ->
+                // println!("payload: {:?}", &p2[..]);
                 // println!("p.payload.len: {}", pl.len());
                /* println!("time READ: {}", );
                 println!("time has_panel: {}", );
@@ -171,11 +173,11 @@ async fn readLatestMosquittoMessages(broker_host: String, broker_port: u16, brok
                 let mut data1 = hw_data_ints::default();
                 // let data = hw_data_ints{
                     data1.time = rdr.read_u32::<LittleEndian>().unwrap(); // 4
-                    data1.has_panel= rdr.read_u16::<BigEndian>().unwrap();
+                    data1.has_panel= rdr.read_u16::<LittleEndian>().unwrap();
                     // data1.has_panel= rdr.read_u8().unwrap();
-                    data1.has_battery= rdr.read_u16::<BigEndian>().unwrap();
-                data1.has_panel= 1;
-                data1.has_battery= 1;
+                    data1.has_battery= rdr.read_u16::<LittleEndian>().unwrap();
+                // data1.has_panel= 1;
+                // data1.has_battery= 1;
                     // data1.has_battery= rdr.read_u8().unwrap();
                     // nominal
                     data1.panel_power= rdr.read_u32::<LittleEndian>().unwrap() as u32;
