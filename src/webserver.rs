@@ -62,7 +62,7 @@ pub fn get_total(house_name: String, mode: Option<String>) -> Json<rocket::serde
         val => {
             return Json(json!({
             "status": 400,
-            "result": format!("/history URL - incorrect 'mode' value: {}", val),}));
+            "result": format!("/total URL - incorrect 'mode' value: {}", val),}));
         }
     };
     let result = get_db_total(String::from(time_param), house_name);
@@ -112,7 +112,6 @@ pub fn get_all2(house_name: String, mode: Option<String>) -> Json<rocket::serde:
     let result = get_db_history(String::from(group_param),
                                 String::from(time_back_range),
                                 &time_grouping_ticks, house_name);
-    // let users = Energy::get_all();
     Json(json!({
         "status": 200,
         "result": result,

@@ -155,6 +155,9 @@ fn get_house_name_sql(house_name: String) -> String {
 }
 
 pub fn get_db_history(group_param: String, time_back_range: String, time_grouping_ticks : &Vec<u32>, house_name: String) -> MeteringHistoryDto {
+
+    print!("time_grouping_ticks: {:?}", time_grouping_ticks);
+
     let where_house_id: String = get_house_name_sql(house_name);
 
     let sql =  format!("SELECT CAST(strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) as INT) as hour1, \
@@ -162,6 +165,9 @@ pub fn get_db_history(group_param: String, time_back_range: String, time_groupin
                                 FROM energy6 \
                                 where {where_house_id} datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '{time_back_range}', 'localtime') AND datetime('now', 'localtime') \
                                 group by strftime('{group_param}', datetime(time, 'unixepoch', 'localtime')) ORDER by datetime(time, 'unixepoch', 'localtime') DESC limit 1000");
+
+    print!("Fetch SQL: {:?}", sql);
+
     let conn = Connection::open("data.sqlite").unwrap();
     let mut stmt = conn.prepare(&*sql).unwrap();
     let hours_map : HashMap<u32, Vec<MeteringHistorySingleDto>> = time_grouping_ticks
@@ -174,7 +180,7 @@ pub fn get_db_history(group_param: String, time_back_range: String, time_groupin
     let meterings_iter = stmt.query_map([], |row| {
         let time_groupping1 = row.get(0).unwrap();
         print!("time_groupping1: {}", time_groupping1);
-        let mut vec1 = hours_map.get(&time_groupping1).unwrap();
+        // let mut vec1 = hours_map.get(&time_groupping1).unwrap();
         // print!("time_groupping1: {}", time_groupping1);
         hours_map2.insert(time_groupping1, MeteringHistorySingleDto {
             time_groupping: time_groupping1,
@@ -215,6 +221,11 @@ pub fn get_db_history(group_param: String, time_back_range: String, time_groupin
         }
     }
 
+    avg_panel1.reverse();
+    avg_battery1.reverse();
+    avg_production1.reverse();
+    avg_consumption1.reverse();
+
     let result = MeteringHistoryDto {
         avg_panel: avg_panel1,
         avg_battery: avg_battery1,
@@ -223,10 +234,8 @@ pub fn get_db_history(group_param: String, time_back_range: String, time_groupin
     };
 
     // print!("result!!!: {:?}", result);
-    // }
     // let result: Vec<MeteringHistoryDto> = meterings_iter.map(|x| x.unwrap() ).collect();
     // conn.close().unwrap();
-    // return result;
     return result;
 }
 
