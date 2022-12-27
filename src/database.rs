@@ -98,14 +98,14 @@ pub fn get_db_total(time_param: String, house_name: String) -> TotalEnergyDto {
 
     let where_house_id = get_house_name_sql(house_name);
 
-    let sql =  format!("select round(sum(e.consumption)/1000., 2) as internal_consumption,
-	round(sum(e.production)/1000., 2) as internal_production,
-	round(sum( case WHEN e.consumption - e.production < 0 then - e.consumption + e.production
+    let sql =  format!("select IFNULL(round(sum(e.consumption)/1000., 2), 0) as internal_consumption,
+	IFNULL(round(sum(e.production)/1000., 2), 0) as internal_production,
+	IFNULL(round(sum( case WHEN e.consumption - e.production < 0 then - e.consumption + e.production
 			else 0
-			end )/1000, 2) as external_production,
-	   round(sum( case WHEN e.consumption - e.production > 0 then e.consumption - e.production
+			end )/1000, 2), 0) as external_production,
+	   IFNULL(round(sum( case WHEN e.consumption - e.production > 0 then e.consumption - e.production
 			else 0
-			end )/1000, 2) as external_consumption
+			end )/1000, 2), 0) as external_consumption
 	from energy6 e
 	where {where_house_id} datetime(time, 'unixepoch', 'localtime') BETWEEN datetime('now', '-1 {time_param}', 'localtime') AND datetime('now', 'localtime')
     limit 1");
