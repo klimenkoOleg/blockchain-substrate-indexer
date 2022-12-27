@@ -6,41 +6,35 @@ use crate::models::MeteringHistoryDto;
 use crate::models::LatestMeteringDto;
 use crate::models::MeteringHistorySingleDto;
 use crate::models::TotalEnergyDto;
-use chrono::{Datelike, Timelike, Utc, Duration};
+use chrono::{Datelike, Timelike, Utc, Duration, DateTime, NaiveDateTime};
 use std::collections::{HashMap};
 
-pub fn get_date_vect_24_hours() -> Vec<u32> {
-    let now = Utc::now();
+pub fn get_date_vect_24_hours(latest_time: NaiveDateTime) -> Vec<u32> {
+    // let now = Utc::now();
     let mut hours: Vec<u32> = Vec::with_capacity(24);
     for i in 0..24 {
-        // let hour_shift = (24 as u32) -  (i as u32) - 1;
-        // let val = now.checked_sub_signed(Duration::hours(hour_shift as i64)).unwrap();
-        let val = now.checked_sub_signed(Duration::hours(i)).unwrap();
+        let val = latest_time.checked_sub_signed(Duration::hours(i)).unwrap();
         hours.push(val.hour());
     }
     return hours;
 }
 
-pub fn get_date_vect_60_minutes() -> Vec<u32> {
-    let now = Utc::now();
+pub fn get_date_vect_60_minutes(latest_time: NaiveDateTime) -> Vec<u32> {
+    // let now = Utc::now();
     // print!("hour: {}", now.hour());
     let mut hours: Vec<u32> = Vec::with_capacity(60);
     for i in 0..60 {
-        // let shift = (60 as u32) -  (i as u32);// - 1;
-        // let shift = (60 as u32) -  (i as u32);// - 1;
-        // let val = now.checked_sub_signed(Duration::minutes(shift as i64)).unwrap();
-        let val = now.checked_sub_signed(Duration::minutes(i)).unwrap();
+        let val = latest_time.checked_sub_signed(Duration::minutes(i)).unwrap();
         hours.push( val.minute() );
     }
     return hours;
 }
 
-pub fn get_date_vect_60_seconds() -> Vec<u32> {
-    let now = Utc::now();
+pub fn get_date_vect_60_seconds(latest_time: NaiveDateTime) -> Vec<u32> {
+    // let now = Utc::now();
     let mut hours: Vec<u32> = Vec::with_capacity(60);
     for i in 0..60 {
-        // let shift = (60 as u32) -  (i as u32) - 1;
-        let val = now.checked_sub_signed(Duration::seconds(i)).unwrap();
+        let val = latest_time.checked_sub_signed(Duration::seconds(i)).unwrap();
         hours.push(val.second());
     }
     return hours;

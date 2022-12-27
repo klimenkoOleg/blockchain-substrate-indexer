@@ -9,6 +9,7 @@ use crate::database::get_date_vect_60_minutes;
 use crate::database::get_date_vect_60_seconds;
 use crate::database::get_date_vect_24_hours;
 use crate::database::get_db_total;
+use chrono::{Datelike, Timelike, Utc, Duration, DateTime, NaiveDateTime};
 
 // #[macro_use]
 // extern crate rocket;
@@ -82,15 +83,24 @@ pub fn get_all2(house_name: String, mode: Option<String>) -> Json<rocket::serde:
     }
     let unwrap1 = mode.unwrap();
     let mode_to_compare = unwrap1;
+    // let now = Utc::now();
+
+    let result = get_latest_record(house_name.clone());
+    let last_mewasured_time = //Utc.timestamp(result.time, 0);
+                    NaiveDateTime::from_timestamp_opt(result.time as i64, 0)
+                        .unwrap();
+
+    println!("Time conversion check. Unix timestamp: {}, converted DateTime: {} ", result.time, last_mewasured_time);
+
     let (group_param, time_back_range, time_grouping_ticks) = match mode_to_compare.as_str() {
         "1" => {
             // let time_grouping_ticks = get_date_vect_24_hours();
-            ("%H", "-1 days", get_date_vect_24_hours()) },
+            ("%H", "-1 days", get_date_vect_24_hours(last_mewasured_time)) },
         // "2" => ("%H", "-1 days"),
-        "2" => ("%M", "-1 hours", get_date_vect_60_minutes()),
+        "2" => ("%M", "-1 hours", get_date_vect_60_minutes(last_mewasured_time)),
         // "3" => ("%H", "-1 days"),
         "3" => {
-            let mut vec =  get_date_vect_60_minutes();
+            let mut vec =  get_date_vect_60_minutes(last_mewasured_time);
             // print!("timevec_grouping_ticks: {:?}", vec);
             let result = vec.drain(0..15).collect();
             ("%M", "-15 minutes", result)
@@ -99,7 +109,7 @@ pub fn get_all2(house_name: String, mode: Option<String>) -> Json<rocket::serde:
             // let mut vec =  get_date_vect_60_seconds();
             // print!("timevec_grouping_ticks: {:?}", vec);
             // let result = vec.drain(0..15).collect();
-            ("%S", "-1 minutes", get_date_vect_60_seconds())
+            ("%S", "-1 minutes", get_date_vect_60_seconds(last_mewasured_time))
         },
         val => {
             return Json(json!({
